@@ -1,5 +1,3 @@
-// Set your public Telegram username here (without @) before publishing.
-const TELEGRAM_USERNAME = '';
 const language = document.querySelector('#language');
 const menu = document.querySelector('#menu');
 const nav = document.querySelector('#nav');
@@ -28,9 +26,69 @@ menu.addEventListener('click', () => { const opened = nav.classList.toggle('open
 nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && nav.classList.contains('open')) { closeMenu(); menu.focus(); } });
 language.addEventListener('click', () => setLanguage(current === 'ru' ? 'en' : 'ru'));
-if (/^[a-zA-Z0-9_]{5,32}$/.test(TELEGRAM_USERNAME)) { const link = document.querySelector('#telegram'); link.href = 'https://t.me/' + TELEGRAM_USERNAME; link.hidden = false; document.querySelector('#contact-note').hidden = true; }
 motion.addEventListener('click', () => { paused = !paused; updateMotion(); });
 window.matchMedia('(max-width: 850px)').addEventListener('change', closeMenu);
 document.documentElement.classList.add('js');
 [language, menu, motion].forEach(el => { el.hidden = false; });
 setLanguage(current);
+
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
+const art = document.querySelector('.art');
+
+function trackPointer(element, apply) {
+  let frame = 0;
+  let x = 0;
+  let y = 0;
+
+  function reset() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    apply(0, 0);
+  }
+
+  element.addEventListener('pointermove', event => {
+    if (paused || reducedMotion.matches || !finePointer.matches || event.pointerType === 'touch') return;
+    x = event.clientX;
+    y = event.clientY;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const bounds = element.getBoundingClientRect();
+      apply((x - bounds.left) / bounds.width - .5, (y - bounds.top) / bounds.height - .5);
+    });
+  });
+  element.addEventListener('pointerleave', reset);
+  element.addEventListener('pointercancel', reset);
+  finePointer.addEventListener('change', reset);
+  reducedMotion.addEventListener('change', reset);
+  motion.addEventListener('click', reset);
+}
+
+trackPointer(art, (x, y) => {
+  art.style.setProperty('--dx', x * 24 + 'px');
+  art.style.setProperty('--dy', y * 20 + 'px');
+});
+document.querySelectorAll('.service').forEach(card => {
+  trackPointer(card, (x, y) => {
+    card.style.setProperty('--rx', -y * 6 + 'deg');
+    card.style.setProperty('--ry', x * 6 + 'deg');
+  });
+});
+
+if ('IntersectionObserver' in window) {
+  const reveal = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      if (!paused && !reducedMotion.matches) entry.target.classList.add('in-view');
+      reveal.unobserve(entry.target);
+    }
+  });
+  document.querySelectorAll('.section h2, .projects article, .steps li, .faq details, .about p, .contact h2').forEach(el => reveal.observe(el));
+
+  const visibility = new IntersectionObserver(entries => {
+    for (const entry of entries) entry.target.classList.toggle('offscreen', !entry.isIntersecting);
+  });
+  visibility.observe(art);
+  visibility.observe(document.querySelector('.ticker'));
+}
